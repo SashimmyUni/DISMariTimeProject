@@ -1,3 +1,11 @@
 __pycache__/
 *.py[cod]
 instance/
+
+# AIS raw files are too large for git
+data/raw/*.csv
+data/cleaned/*.csv
+
+# Keep folder structure
+!data/raw/.gitkeep
+!data/cleaned/.gitkeep
