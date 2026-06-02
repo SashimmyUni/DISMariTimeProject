@@ -1,10 +1,19 @@
 import argparse
+import sys
 from pathlib import Path
+
+# Ensure the project root is on sys.path so `app` is importable
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
 
 from app import create_app, db
 from app.models import ShipPosition
+
+
+PROGRESS_BAR_WIDTH = 28
+PROGRESS_UPDATE_EVERY_ROWS = 25_000
+DEFAULT_CLEANED_DIR = Path(__file__).resolve().parents[1] / "data" / "cleaned"
 
 
 def pick_value(row, *candidates):
@@ -36,10 +45,21 @@ def parse_timestamp(value):
     return parsed.to_pydatetime()
 
 
+def render_progress(current, total, prefix):
+    if total <= 0:
+        return
+
+    ratio = max(0.0, min(1.0, current / total))
+    filled = int(ratio * PROGRESS_BAR_WIDTH)
+    bar = "#" * filled + "-" * (PROGRESS_BAR_WIDTH - filled)
+    percent = ratio * 100
+    print(f"\r{prefix} [{bar}] {percent:6.2f}% ({current:,}/{total:,})", end="", flush=True)
+
+
 def resolve_csv_paths(csv_source):
     source = Path(csv_source)
     if source.is_dir():
-        return sorted(path for path in source.glob("*.csv") if path.is_file())
+        return sorted(path for path in source.rglob("*.csv") if path.is_file())
     if source.is_file():
         return [source]
     return []
@@ -60,8 +80,13 @@ def import_csv_paths(csv_paths, replace=False):
             dataframe = pd.read_csv(csv_path)
             inserted = 0
             skipped = 0
+            total_rows = len(dataframe.index)
 
-            for _, row in dataframe.iterrows():
+            for index, row in dataframe.iterrows():
+                current_row = index + 1
+                if current_row == 1 or current_row % PROGRESS_UPDATE_EVERY_ROWS == 0:
+                    render_progress(current_row, total_rows, f"Importing {Path(csv_path).name}")
+
                 mmsi = pick_value(row, "mmsi", "MMSI")
                 latitude = parse_float(pick_value(row, "latitude", "LAT", "Latitude"))
                 longitude = parse_float(pick_value(row, "longitude", "LON", "Longitude", "lng"))
@@ -90,6 +115,9 @@ def import_csv_paths(csv_paths, replace=False):
                 db.session.add(ship)
                 inserted += 1
 
+            render_progress(total_rows, total_rows, f"Importing {Path(csv_path).name}")
+            print()
+
             db.session.commit()
             total_inserted += inserted
             total_skipped += skipped
@@ -107,7 +135,7 @@ def main():
     parser.add_argument(
         "csv_source",
         nargs="?",
-        default="data/cleaned",
+        default=str(DEFAULT_CLEANED_DIR),
         help="Path to a CSV file or a directory containing CSV files.",
     )
     parser.add_argument(
@@ -122,6 +150,8 @@ def main():
             f"No CSV files found at '{args.csv_source}'. "
             "Provide a valid CSV file path or directory."
         )
+
+    print(f"Found {len(csv_paths)} CSV files to import from {args.csv_source}.")
 
     import_csv_paths(csv_paths, replace=args.replace)
 

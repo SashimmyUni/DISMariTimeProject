@@ -26,6 +26,10 @@ import sys
 from datetime import datetime, timedelta
 from collections import defaultdict
 
+
+PROGRESS_BAR_WIDTH = 28
+PROGRESS_UPDATE_EVERY_ROWS = 50_000
+
 # ── North Sea / Kattegat / Baltic corridor ────────────────────────────────
 LAT_MIN, LAT_MAX = 53.5, 60.0
 LON_MIN, LON_MAX =  3.0, 17.0
@@ -51,6 +55,17 @@ def parse_timestamp(raw: str) -> datetime | None:
     return None
 
 
+def render_progress(current: int, total: int, prefix: str) -> None:
+    if total <= 0:
+        return
+
+    ratio = max(0.0, min(1.0, current / total))
+    filled = int(ratio * PROGRESS_BAR_WIDTH)
+    bar = "#" * filled + "-" * (PROGRESS_BAR_WIDTH - filled)
+    percent = ratio * 100
+    print(f"\r{prefix} [{bar}] {percent:6.2f}%", end="", flush=True)
+
+
 def clean_file(input_path: str) -> None:
     basename    = os.path.basename(input_path).replace(".csv", "-clean.csv")
     output_dir  = os.path.join(os.path.dirname(input_path), "..", "cleaned")
@@ -61,6 +76,8 @@ def clean_file(input_path: str) -> None:
     last_seen: dict[str, datetime] = defaultdict(lambda: datetime.min)
 
     read = written = skipped = 0
+    with open(input_path, encoding="utf-8") as row_counter:
+        total_rows = max(0, sum(1 for _ in row_counter) - 1)
 
     with (
         open(input_path,  newline="", encoding="utf-8") as fin,
@@ -76,6 +93,9 @@ def clean_file(input_path: str) -> None:
 
         for row in reader:
             read += 1
+
+            if read == 1 or read % PROGRESS_UPDATE_EVERY_ROWS == 0:
+                render_progress(read, total_rows, f"  Progress {os.path.basename(input_path)}")
 
             # 1. Class A only
             if row.get("Type of mobile", "").strip() != "Class A":
@@ -132,6 +152,9 @@ def clean_file(input_path: str) -> None:
                 "destination": row.get("Destination", "").strip() or None,
             })
             written += 1
+
+        render_progress(read, total_rows, f"  Progress {os.path.basename(input_path)}")
+        print()
 
     pct     = (written / read * 100) if read else 0
     size_mb = os.path.getsize(output_path) / 1_000_000

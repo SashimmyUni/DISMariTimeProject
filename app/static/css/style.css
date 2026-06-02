@@ -15,7 +15,62 @@ body {
     display: flex;
     gap: 12px;
     align-items: center;
+    flex-wrap: wrap;
     margin-bottom: 14px;
+}
+
+.toolbar label {
+    font-size: 14px;
+    color: #334155;
+    font-weight: 600;
+}
+
+.checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #334155;
+    font-weight: 600;
+}
+
+#latest-only-filter {
+    width: 16px;
+    height: 16px;
+    accent-color: #0f766e;
+}
+
+#date-filter {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px;
+    color: #1f2937;
+    background: #ffffff;
+}
+
+#vessel-filter {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px;
+    color: #1f2937;
+    background: #ffffff;
+    min-width: 220px;
+}
+
+#clear-date-btn {
+    background: #e2e8f0;
+    color: #0f172a;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+#clear-date-btn:hover {
+    background: #cbd5e1;
 }
 
 #refresh-btn {
