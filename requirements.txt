@@ -1,1 +1,10 @@
+<<<<<<< HEAD
 Flask>=3.0,<4.0
+=======
+Flask
+Flask-SQLAlchemy
+Flask-Migrate
+psycopg2-binary
+python-dotenv
+pandas
+>>>>>>> main
