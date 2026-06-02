@@ -1,84 +1,128 @@
-import io
-import os
-import tempfile
 import unittest
+from datetime import UTC, datetime, timedelta
 
-from app import create_app
+from app import create_app, db
+from app.models import ShipPosition
 
 
-class AisAppTestCase(unittest.TestCase):
+class AppTestCase(unittest.TestCase):
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.database_path = os.path.join(self.temp_dir.name, "test.sqlite")
         self.app = create_app(
             {
                 "TESTING": True,
-                "DATABASE": self.database_path,
+                "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
                 "SECRET_KEY": "test-secret",
             }
         )
         self.client = self.app.test_client()
 
+        with self.app.app_context():
+            db.drop_all()
+            db.create_all()
+            now = datetime.now(UTC)
+            db.session.add(
+                ShipPosition(
+                    mmsi=123456789,
+                    vessel_name="Alpha",
+                    latitude=1.29027,
+                    longitude=103.851959,
+                    speed=12.5,
+                    course=180.0,
+                    heading=175.0,
+                    timestamp=now,
+                )
+            )
+            db.session.add(
+                ShipPosition(
+                    mmsi=987654321,
+                    vessel_name="Bravo",
+                    latitude=1.3000,
+                    longitude=103.8000,
+                    speed=10.2,
+                    course=90.0,
+                    heading=95.0,
+                    timestamp=now - timedelta(days=1, minutes=5),
+                )
+            )
+            db.session.add(
+                ShipPosition(
+                    mmsi=123456789,
+                    vessel_name="Alpha",
+                    latitude=1.2900,
+                    longitude=103.8510,
+                    speed=11.0,
+                    course=178.0,
+                    heading=170.0,
+                    timestamp=now - timedelta(minutes=30),
+                )
+            )
+            db.session.commit()
+
+            self.today = now.date().isoformat()
+            self.previous_day = (now - timedelta(days=1)).date().isoformat()
+
     def tearDown(self):
-        self.temp_dir.cleanup()
+        with self.app.app_context():
+            db.session.remove()
+            db.drop_all()
 
-    def test_upload_imports_csv_and_shows_latest_ship_positions(self):
-        csv_payload = """MMSI,VesselName,BaseDateTime,LAT,LON,COG,Heading
-123456789,Alpha,2024-01-01T10:00:00,1.2345,103.9876,90,88
-123456789,Alpha,2024-01-01T11:00:00,1.3345,104.0876,135,140
-987654321,Bravo,2024-01-01T09:00:00,2.2222,105.1111,,270
-"""
-
-        response = self.client.post(
-            "/",
-            data={"csv_file": (io.BytesIO(csv_payload.encode("utf-8")), "ais.csv")},
-            content_type="multipart/form-data",
-            follow_redirects=True,
-        )
-
+    def test_index_renders_tracker_page(self):
+        response = self.client.get("/")
         page = response.get_data(as_text=True)
+
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Imported 3 AIS reports into SQLite.", page)
-        self.assertIn("Alpha", page)
-        self.assertIn("1.33450", page)
-        self.assertIn("104.08760", page)
-        self.assertIn("SE", page)
-        self.assertIn("Bravo", page)
-        self.assertIn("W", page)
-        self.assertIn(">2<", page)
+        self.assertIn("AIS Ship Tracker", page)
 
-    def test_upload_rejects_missing_required_columns(self):
-        csv_payload = """VesselName,BaseDateTime,LAT,LON
-Alpha,2024-01-01T10:00:00,1.2345,103.9876
-"""
+    def test_api_ships_returns_json(self):
+        response = self.client.get("/api/ships")
 
-        response = self.client.post(
-            "/",
-            data={"csv_file": (io.BytesIO(csv_payload.encode("utf-8")), "ais.csv")},
-            content_type="multipart/form-data",
-            follow_redirects=True,
-        )
-
-        page = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("missing the required mmsi value", page.lower())
+        payload = response.get_json()
+        self.assertEqual(len(payload), 3)
+        self.assertEqual(payload[0]["vessel_name"], "Alpha")
+        self.assertIn("timestamp", payload[0])
 
-    def test_upload_accepts_common_underscore_column_aliases(self):
-        csv_payload = """mmsi,vessel_name,recorded_at,latitude,longitude,heading
-111222333,Underscore,2024-01-02 08:00:00,1.1000,103.7000,180
-"""
+    def test_api_ships_filters_by_date(self):
+        response = self.client.get(f"/api/ships?date={self.today}")
 
-        response = self.client.post(
-            "/",
-            data={"csv_file": (io.BytesIO(csv_payload.encode("utf-8")), "ais.csv")},
-            content_type="multipart/form-data",
-            follow_redirects=True,
-        )
-
-        page = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Underscore", page)
-        self.assertIn("S", page)
+        payload = response.get_json()
+        self.assertEqual(len(payload), 2)
+        self.assertEqual(payload[0]["vessel_name"], "Alpha")
+
+    def test_api_ships_returns_latest_position_per_ship(self):
+        response = self.client.get("/api/ships?latest=true")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(len(payload), 2)
+
+        alpha_positions = [ship for ship in payload if ship["mmsi"] == 123456789]
+        self.assertEqual(len(alpha_positions), 1)
+
+    def test_api_ships_filters_by_mmsi(self):
+        response = self.client.get("/api/ships?mmsi=123456789")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(len(payload), 2)
+        self.assertTrue(all(ship["mmsi"] == 123456789 for ship in payload))
+
+    def test_api_vessels_returns_grouped_latest_rows(self):
+        response = self.client.get("/api/vessels")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(len(payload), 2)
+        mmsis = {ship["mmsi"] for ship in payload}
+        self.assertSetEqual(mmsis, {123456789, 987654321})
+
+    def test_api_ships_rejects_invalid_date(self):
+        response = self.client.get("/api/ships?date=2025-99-99")
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertIn("error", payload)
 
 
 if __name__ == "__main__":
