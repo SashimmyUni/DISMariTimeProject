@@ -6,6 +6,32 @@
 <div class="container">
     <h1>AIS Ship Tracker</h1>
     <p>Track ship positions from PostgreSQL data using Flask and Leaflet.</p>
+
+    <div class="toolbar">
+        <button id="refresh-btn" type="button">Refresh Data</button>
+        <span id="status-text">Loading data...</span>
+    </div>
+
     <div id="map"></div>
+
+    <section class="table-section">
+        <h2>Latest Ship Positions</h2>
+        <div class="table-wrap">
+            <table id="ships-table">
+                <thead>
+                    <tr>
+                        <th>Vessel</th>
+                        <th>MMSI</th>
+                        <th>Latitude</th>
+                        <th>Longitude</th>
+                        <th>Speed</th>
+                        <th>Course</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody id="ships-table-body"></tbody>
+            </table>
+        </div>
+    </section>
 </div>
 {% endblock %}
