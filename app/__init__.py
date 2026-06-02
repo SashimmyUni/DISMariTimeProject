@@ -21,4 +21,8 @@ def create_app():
     app.register_blueprint(main)
     app.register_blueprint(api, url_prefix="/api")
 
+    # Keep local setup friction low for coursework demos and quick iterations.
+    with app.app_context():
+        db.create_all()
+
     return app

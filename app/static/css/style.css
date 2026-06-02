@@ -1,6 +1,6 @@
 body {
     margin: 0;
-    font-family: Arial, sans-serif;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
     background-color: #f5f7fa;
     color: #1f2937;
 }
@@ -11,10 +11,67 @@ body {
     padding: 20px;
 }
 
+.toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+#refresh-btn {
+    background: #0f766e;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+#refresh-btn:hover {
+    background: #115e59;
+}
+
+#status-text {
+    font-size: 14px;
+    color: #475569;
+}
+
 #map {
     width: 100%;
     height: 600px;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     background: #dbeafe;
+}
+
+.table-section {
+    margin-top: 22px;
+}
+
+.table-wrap {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    overflow: auto;
+}
+
+#ships-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#ships-table th,
+#ships-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+    font-size: 14px;
+}
+
+#ships-table th {
+    background: #f8fafc;
+    color: #334155;
+    position: sticky;
+    top: 0;
 }
