@@ -2,21 +2,34 @@ from datetime import date, timedelta
 
 from flask import Blueprint, jsonify, request
 from sqlalchemy import func
+import re
 
 from app.models import ShipPosition
 
 api = Blueprint("api", __name__)
 
+# Input validation patterns
+MMSI_RE   = re.compile(r"^\d{7,9}$")
+VESSEL_RE = re.compile(r"^[A-Za-z0-9 .'\-]{1,50}$")
+DATE_RE   = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+ 
 
+# Helpers
 def apply_date_filter(query, date_filter):
+    """
+    Filter query to a single calendar day. Returns (query, erorr) tuple.
+    """
     if not date_filter:
         return query, None
 
+    if not DATE_RE.match(date_filter):
+        return None, (jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400)
+ 
     try:
         selected_day = date.fromisoformat(date_filter)
     except ValueError:
-        return None, (jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400)
-
+        return None, (jsonify({"error": "Invalid date. Use YYYY-MM-DD."}), 400)
+ 
     next_day = selected_day + timedelta(days=1)
     return (
         query.filter(
@@ -25,8 +38,8 @@ def apply_date_filter(query, date_filter):
         ),
         None,
     )
-
-
+ 
+# Routes
 @api.route("/vessels")
 def get_vessels():
     query = ShipPosition.query
