@@ -165,7 +165,7 @@ function buildShipsUrl() {
     if (!latestOnlyFilterInput?.checked && !vesselFilterInput?.value) {
         const limit = limitFilterInput?.value || "100";
         params.set("limit", limit);
-}
+    }}
 
 async function loadShips() {
     statusText.textContent = "Loading data...";
