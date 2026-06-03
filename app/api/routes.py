@@ -141,7 +141,7 @@ def get_ships():
  
         ships = (
             filtered_query.all()
-            if has_single_vessel_filter
+            if (has_single_vessel_filter or latest_only)
             else filtered_query.limit(100).all()
         )
     else:
