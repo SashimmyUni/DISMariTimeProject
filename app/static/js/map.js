@@ -147,6 +147,7 @@ async function loadVesselOptions() {
 
 function buildShipsUrl() {
     const params = new URLSearchParams();
+
     const selectedDate = dateFilterInput?.value;
     if (selectedDate) {
         params.set("date", selectedDate);
@@ -160,8 +161,10 @@ function buildShipsUrl() {
         params.set("mmsi", vesselFilterInput.value);
     }
 
-    const queryString = params.toString();
-    return queryString ? `/api/ships?${queryString}` : "/api/ships";
+    // Only send limit when latest_only is not checked and no single vessel selected
+    if (!latestOnlyFilterInput?.checked && !vesselFilterInput?.value) {
+        const limit = limitFilterInput?.value || "100";
+        params.set("limit", limit);
 }
 
 async function loadShips() {
