@@ -1,4 +1,4 @@
-const map = L.map("map").setView([1.29027, 103.851959], 8);
+const map = L.map("map").setView([56.0, 10.0], 6);
 const markerLayer = L.layerGroup().addTo(map);
 
 const tableBody = document.getElementById("ships-table-body");
