@@ -47,7 +47,7 @@ def apply_limit(query, limit_param):
         return query.all(), None
     
     try: 
-        limit = int(limit_param)
+        limit_val = int(limit_param)
         if limit_val <= 0:
             raise ValueError()
         return query.limit(limit_val).all(), None
