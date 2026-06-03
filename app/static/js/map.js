@@ -6,6 +6,7 @@ const statusText = document.getElementById("status-text");
 const refreshButton = document.getElementById("refresh-btn");
 const dateFilterInput = document.getElementById("date-filter");
 const vesselFilterInput = document.getElementById("vessel-filter");
+const limitFilterInput = document.getElementById("limit-filter");
 const latestOnlyFilterInput = document.getElementById("latest-only-filter");
 const clearDateButton = document.getElementById("clear-date-btn");
 
