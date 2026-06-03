@@ -39,6 +39,21 @@ def apply_date_filter(query, date_filter):
         None,
     )
  
+def apply_limit(query, limit_param):
+    """
+    Apply a limit to the query. Returns (results, error) tuple
+    """ 
+    if limit_param == "all":
+        return query.all(), None
+    
+    try: 
+        limit = int(limit_param)
+        if limit_val <= 0:
+            raise ValueError()
+        return query.limit(limit_val).all(), None
+    except ValueError:
+        return None, (jsonify({"error": "Invalid limit. Use a positive integer or 'all'."}), 400)
+
 # Routes
 @api.route("/vessels")
 def get_vessels():
@@ -120,6 +135,9 @@ def get_ships():
     latest_only = request.args.get("latest", "false").strip().lower() in {
         "1", "true", "yes", "on",
     }
+
+    # Limit parameter
+    limit_param = request.args.get("limit", "100").strip()
  
     has_single_vessel_filter = bool(mmsi_filter or vessel_filter)
  
@@ -146,11 +164,12 @@ def get_ships():
         )
     else:
         ordered_query = query.order_by(ShipPosition.timestamp.desc())
-        ships = (
-            ordered_query.all()
-            if has_single_vessel_filter
-            else ordered_query.limit(100).all()
-        )
+        if has_single_vessel_filter:
+            ships = ordered_query.all()
+        else:
+            ships, limit_error = apply_limit(ordered_query, limit_param)
+            if limit_error:
+                return limit_error
  
     return jsonify([ship.to_dict() for ship in ships])
  
