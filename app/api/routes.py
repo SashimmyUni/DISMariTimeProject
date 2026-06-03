@@ -1,10 +1,9 @@
 from datetime import date, timedelta
 
 from flask import Blueprint, jsonify, request
-from sqlalchemy import func
 import re
 
-from app.models import ShipPosition
+from app.db import normalize_timestamp, select_dicts
 
 api = Blueprint("api", __name__)
 
@@ -15,68 +14,56 @@ DATE_RE   = re.compile(r"^\d{4}-\d{2}-\d{2}$")
  
 
 # Helpers
-def apply_date_filter(query, date_filter):
+def parse_date_bounds(date_filter):
     """
-    Filter query to a single calendar day. Returns (query, erorr) tuple.
+    Parse a YYYY-MM-DD date and return (start, end) datetime bounds.
     """
     if not date_filter:
-        return query, None
+        return None, None, None
 
     if not DATE_RE.match(date_filter):
-        return None, (jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400)
+        return None, None, (jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400)
  
     try:
         selected_day = date.fromisoformat(date_filter)
     except ValueError:
-        return None, (jsonify({"error": "Invalid date. Use YYYY-MM-DD."}), 400)
+        return None, None, (jsonify({"error": "Invalid date. Use YYYY-MM-DD."}), 400)
  
     next_day = selected_day + timedelta(days=1)
-    return (
-        query.filter(
-            ShipPosition.timestamp >= selected_day,
-            ShipPosition.timestamp < next_day,
-        ),
-        None,
-    )
+    return selected_day, next_day, None
  
 # Routes
 @api.route("/vessels")
 def get_vessels():
-    query = ShipPosition.query
     date_filter = request.args.get("date")
-    query, date_error = apply_date_filter(query, date_filter)
+    start_day, end_day, date_error = parse_date_bounds(date_filter)
     if date_error:
         return date_error
 
-    latest_subquery = (
-        query.with_entities(
-            ShipPosition.mmsi.label("mmsi"),
-            func.max(ShipPosition.timestamp).label("latest_timestamp"),
-        )
-        .group_by(ShipPosition.mmsi)
-        .subquery()
-    )
+    params = []
+    where_clause = ""
+    if start_day and end_day:
+        where_clause = "WHERE timestamp >= %s AND timestamp < %s"
+        params.extend([start_day, end_day])
 
-    rows = (
-        query.join(
-            latest_subquery,
-            (ShipPosition.mmsi == latest_subquery.c.mmsi)
-            & (ShipPosition.timestamp == latest_subquery.c.latest_timestamp),
-        )
-        .with_entities(
-            ShipPosition.mmsi,
-            ShipPosition.vessel_name,
-            ShipPosition.timestamp,
-        )
-        .order_by(ShipPosition.timestamp.desc())
-        .all()
+    rows = select_dicts(
+        f"""
+        SELECT DISTINCT ON (mmsi)
+            mmsi,
+            vessel_name,
+            timestamp
+        FROM ship_positions
+        {where_clause}
+        ORDER BY mmsi, timestamp DESC
+        """,
+        params,
     )
 
     payload = [
         {
-            "mmsi": row.mmsi,
-            "vessel_name": row.vessel_name,
-            "timestamp": row.timestamp.isoformat(),
+            "mmsi": row["mmsi"],
+            "vessel_name": row["vessel_name"],
+            "timestamp": normalize_timestamp(row["timestamp"]),
         }
         for row in rows
     ]
@@ -94,27 +81,38 @@ def get_ships():
         date        -- calendar day in YYYY-MM-DD format
         latest      -- if "true", return only the most recent position per vessel
     """
-    query = ShipPosition.query
+    where_clauses = []
+    params = []
  
     # Date filter
     date_filter = request.args.get("date", "").strip()
-    query, date_error = apply_date_filter(query, date_filter or None)
+    start_day, end_day, date_error = parse_date_bounds(date_filter or None)
     if date_error:
         return date_error
+    if start_day and end_day:
+        where_clauses.append("timestamp >= %s")
+        where_clauses.append("timestamp < %s")
+        params.extend([start_day, end_day])
  
     # MMSI filter
     mmsi_filter = request.args.get("mmsi", "").strip()
     if mmsi_filter:
         if not MMSI_RE.match(mmsi_filter):
             return jsonify({"error": "Invalid MMSI. Must be 7–9 digits."}), 400
-        query = query.filter(ShipPosition.mmsi == int(mmsi_filter))
+        where_clauses.append("mmsi = %s")
+        params.append(int(mmsi_filter))
  
     # Vessel name filter
     vessel_filter = request.args.get("vessel", "").strip()
     if vessel_filter:
         if not VESSEL_RE.match(vessel_filter):
             return jsonify({"error": "Invalid vessel name. Use letters, digits, spaces, . ' -"}), 400
-        query = query.filter(ShipPosition.vessel_name.ilike(f"%{vessel_filter}%"))
+        where_clauses.append("vessel_name ILIKE %s")
+        params.append(f"%{vessel_filter}%")
+
+    where_sql = ""
+    if where_clauses:
+        where_sql = "WHERE " + " AND ".join(where_clauses)
  
     # Latest-only flag
     latest_only = request.args.get("latest", "false").strip().lower() in {
@@ -124,33 +122,57 @@ def get_ships():
     has_single_vessel_filter = bool(mmsi_filter or vessel_filter)
  
     if latest_only:
-        latest_subquery = (
-            query.with_entities(
-                ShipPosition.mmsi.label("mmsi"),
-                func.max(ShipPosition.timestamp).label("latest_timestamp"),
-            )
-            .group_by(ShipPosition.mmsi)
-            .subquery()
-        )
- 
-        filtered_query = query.join(
-            latest_subquery,
-            (ShipPosition.mmsi == latest_subquery.c.mmsi)
-            & (ShipPosition.timestamp == latest_subquery.c.latest_timestamp),
-        ).order_by(ShipPosition.timestamp.desc())
- 
-        ships = (
-            filtered_query.all()
-            if (has_single_vessel_filter or latest_only)
-            else filtered_query.limit(100).all()
-        )
+        query = f"""
+        SELECT DISTINCT ON (mmsi)
+            id,
+            mmsi,
+            vessel_name,
+            latitude,
+            longitude,
+            speed,
+            course,
+            heading,
+            timestamp
+        FROM ship_positions
+        {where_sql}
+        ORDER BY mmsi, timestamp DESC
+        """
+        ships = select_dicts(query, params)
     else:
-        ordered_query = query.order_by(ShipPosition.timestamp.desc())
-        ships = (
-            ordered_query.all()
-            if has_single_vessel_filter
-            else ordered_query.limit(100).all()
-        )
+        limit_sql = "" if has_single_vessel_filter else "LIMIT 100"
+        query = f"""
+        SELECT
+            id,
+            mmsi,
+            vessel_name,
+            latitude,
+            longitude,
+            speed,
+            course,
+            heading,
+            timestamp
+        FROM ship_positions
+        {where_sql}
+        ORDER BY timestamp DESC
+        {limit_sql}
+        """
+        ships = select_dicts(query, params)
  
-    return jsonify([ship.to_dict() for ship in ships])
+    payload = []
+    for ship in ships:
+        payload.append(
+            {
+                "id": ship["id"],
+                "mmsi": ship["mmsi"],
+                "vessel_name": ship["vessel_name"],
+                "latitude": ship["latitude"],
+                "longitude": ship["longitude"],
+                "speed": ship["speed"],
+                "course": ship["course"],
+                "heading": ship["heading"],
+                "timestamp": normalize_timestamp(ship["timestamp"]),
+            }
+        )
+
+    return jsonify(payload)
  

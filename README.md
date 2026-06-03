@@ -6,7 +6,7 @@ A Flask web application for displaying AIS vessel positions from a PostgreSQL da
 
 This project supports PostgreSQL only.
 
-- The website backend reads vessel data from PostgreSQL via SQLAlchemy.
+- The website backend reads vessel data from PostgreSQL using direct SQL via psycopg2.
 - `DATABASE_URL` must point to a PostgreSQL instance.
 - SQLite is not supported for runtime use.
 
@@ -15,7 +15,6 @@ This project supports PostgreSQL only.
 - Python / Flask
 - PostgreSQL
 - pgAdmin (local database management)
-- Flask-SQLAlchemy
 - HTML, CSS, JavaScript
 - Leaflet.js
 
@@ -65,7 +64,7 @@ The importer supports both the project sample schema (`vessel_name`, `speed`) an
 ## Project Structure
 
 - `app/` Flask application package
-- `app/models.py` SQLAlchemy models
+- `app/db.py` PostgreSQL connection and schema utilities
 - `app/api/routes.py` JSON API routes
 - `app/templates/` HTML templates
 - `app/static/` CSS and JavaScript assets
