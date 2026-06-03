@@ -10,14 +10,25 @@
     <div class="toolbar">
         <label for="date-filter">Date:</label>
         <input id="date-filter" type="date">
+
         <label for="vessel-filter">Vessel:</label>
         <select id="vessel-filter">
             <option value="">All vessels</option>
         </select>
+
+        <label for="limit-filter">Show:</label>
+        <select id="limit-filter">
+            <option value="100">100 ships</option>
+            <option value="500">500 ships</option>
+            <option value="1000">1000 ships</option>
+            <option value="all">All ships</option>
+        </select>
+
         <label class="checkbox-label" for="latest-only-filter">
             <input id="latest-only-filter" type="checkbox">
             Latest position only
         </label>
+
         <button id="clear-date-btn" type="button">Clear Filters</button>
         <button id="refresh-btn" type="button">Refresh Data</button>
         <span id="status-text">Loading data...</span>
