@@ -213,6 +213,8 @@ refreshButton.addEventListener("click", loadShips);
 dateFilterInput?.addEventListener("change", loadShips);
 vesselFilterInput?.addEventListener("change", loadShips);
 latestOnlyFilterInput?.addEventListener("change", loadShips);
+limitFilterInput?.addEventListener("change", loadShips);
+
 clearDateButton?.addEventListener("click", () => {
     if (dateFilterInput) {
         dateFilterInput.value = "";
@@ -222,6 +224,9 @@ clearDateButton?.addEventListener("click", () => {
     }
     if (latestOnlyFilterInput) {
         latestOnlyFilterInput.checked = false;
+    }
+    if (limitFilterInput) {
+        limitFilterInput.value = "100";
     }
     loadShips();
 });
