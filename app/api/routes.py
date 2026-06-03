@@ -85,32 +85,44 @@ def get_vessels():
 
 @api.route("/ships")
 def get_ships():
+    """
+    Return ship positions with optional filters.
+ 
+    Query parameters:
+        mmsi        -- 7-9 digit MMSI number
+        vessel      -- vessel name (partial match, max 50 chars)
+        date        -- calendar day in YYYY-MM-DD format
+        latest      -- if "true", return only the most recent position per vessel
+    """
     query = ShipPosition.query
-    date_filter = request.args.get("date")
-    query, date_error = apply_date_filter(query, date_filter)
+ 
+    # Date filter
+    date_filter = request.args.get("date", "").strip()
+    query, date_error = apply_date_filter(query, date_filter or None)
     if date_error:
         return date_error
-
-    latest_only = request.args.get("latest", "false").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-    mmsi_filter = request.args.get("mmsi")
-    vessel_filter = request.args.get("vessel", "").strip()
-
+ 
+    # MMSI filter
+    mmsi_filter = request.args.get("mmsi", "").strip()
     if mmsi_filter:
-        try:
-            query = query.filter(ShipPosition.mmsi == int(mmsi_filter))
-        except ValueError:
-            return jsonify({"error": "Invalid mmsi format. Use an integer MMSI."}), 400
-
+        if not MMSI_RE.match(mmsi_filter):
+            return jsonify({"error": "Invalid MMSI. Must be 7–9 digits."}), 400
+        query = query.filter(ShipPosition.mmsi == int(mmsi_filter))
+ 
+    # Vessel name filter
+    vessel_filter = request.args.get("vessel", "").strip()
     if vessel_filter:
+        if not VESSEL_RE.match(vessel_filter):
+            return jsonify({"error": "Invalid vessel name. Use letters, digits, spaces, . ' -"}), 400
         query = query.filter(ShipPosition.vessel_name.ilike(f"%{vessel_filter}%"))
-
+ 
+    # Latest-only flag
+    latest_only = request.args.get("latest", "false").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+ 
     has_single_vessel_filter = bool(mmsi_filter or vessel_filter)
-
+ 
     if latest_only:
         latest_subquery = (
             query.with_entities(
@@ -120,16 +132,25 @@ def get_ships():
             .group_by(ShipPosition.mmsi)
             .subquery()
         )
-
+ 
         filtered_query = query.join(
             latest_subquery,
             (ShipPosition.mmsi == latest_subquery.c.mmsi)
             & (ShipPosition.timestamp == latest_subquery.c.latest_timestamp),
         ).order_by(ShipPosition.timestamp.desc())
-
-        ships = filtered_query.all() if has_single_vessel_filter else filtered_query.limit(100).all()
+ 
+        ships = (
+            filtered_query.all()
+            if has_single_vessel_filter
+            else filtered_query.limit(100).all()
+        )
     else:
         ordered_query = query.order_by(ShipPosition.timestamp.desc())
-        ships = ordered_query.all() if has_single_vessel_filter else ordered_query.limit(100).all()
-
+        ships = (
+            ordered_query.all()
+            if has_single_vessel_filter
+            else ordered_query.limit(100).all()
+        )
+ 
     return jsonify([ship.to_dict() for ship in ships])
+ 
