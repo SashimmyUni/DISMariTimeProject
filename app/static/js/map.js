@@ -118,6 +118,9 @@ async function loadVesselOptions() {
         }
 
         const vessels = await response.json();
+        // Sort vessels alphabetically by name
+        vessels.sort((a, b) => (a.vessel_name || "").localeCompare(b.vessel_name || ""));
+
         const selected = vesselFilterInput.value;
 
         vesselFilterInput.innerHTML = "";
