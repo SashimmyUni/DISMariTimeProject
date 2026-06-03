@@ -1,7 +1,7 @@
 ================================================================================
   DISMariTime – pgAdmin-ready SQL
-  Source: converted from SQLAlchemy ORM (models.py, api/routes.py,
-          scripts/import_ais.py, tests/test_app.py)
+    Source: aligned with direct SQL usage in app/api/routes.py,
+                    scripts/import_ais.py, tests/test_app.py
 ================================================================================
 
 
