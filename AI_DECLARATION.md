@@ -23,6 +23,6 @@ Claude (Anthropic) — https://claude.ai
 
 ## How Generative AI Was Used
 
-1. We used GAI to assist with writing and debugging code.
-2. AI was used during the implementation phase — primarily for Flask routes and JavaScript.
-3. All output was reviewed, tested, and modified by the individual using the GAI tool before being included in the project.
+We used GAI to assist with writing and debugging code.
+AI was used during the implementation phase — primarily for Flask routes and JavaScript.
+All output was reviewed, tested, and modified by the individual using the GAI tool before being included in the project.
