@@ -2,7 +2,7 @@
 
 **Databases and Information Systems – NDAB21010U**
 
-| | | |
+|:---:|:---:|:---:|
 | **Andreas Krone Reichl** | **Jimmy Huynh** | **Sebastian Lucas Poulsen** |
 | Department of Computer Science | Department of Computer Science | Department of Computer Science |
 | University of Copenhagen | University of Copenhagen | University of Copenhagen |
