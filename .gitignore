@@ -11,6 +11,3 @@ data/raw/*.csv
 
 # Environment variables
 .env
-
-# SQLite database
-*.db

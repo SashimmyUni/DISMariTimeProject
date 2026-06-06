@@ -1,11 +1,7 @@
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
 
 from config import Config
-
-db = SQLAlchemy()
-migrate = Migrate()
+from app.db import ensure_schema
 
 
 def _is_postgres_uri(uri):
@@ -18,15 +14,12 @@ def create_app(config_overrides=None):
     if config_overrides:
         app.config.update(config_overrides)
 
-    database_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+    database_uri = app.config.get("DATABASE_URL", "")
     if not app.config.get("TESTING") and not _is_postgres_uri(database_uri):
         raise RuntimeError(
             "This project only supports PostgreSQL. "
             "Set DATABASE_URL to a PostgreSQL connection string."
         )
-
-    db.init_app(app)
-    migrate.init_app(app, db)
 
     from app.routes import main
     from app.api.routes import api
@@ -35,7 +28,8 @@ def create_app(config_overrides=None):
     app.register_blueprint(api, url_prefix="/api")
 
     # Keep local setup friction low for coursework demos and quick iterations.
-    with app.app_context():
-        db.create_all()
+    if not app.config.get("TESTING"):
+        with app.app_context():
+            ensure_schema()
 
     return app

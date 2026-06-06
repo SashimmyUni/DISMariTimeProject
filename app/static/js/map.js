@@ -1,4 +1,4 @@
-const map = L.map("map").setView([1.29027, 103.851959], 8);
+const map = L.map("map").setView([56.0, 10.0], 6);
 const markerLayer = L.layerGroup().addTo(map);
 
 const tableBody = document.getElementById("ships-table-body");
@@ -118,6 +118,9 @@ async function loadVesselOptions() {
         }
 
         const vessels = await response.json();
+        // Sort vessels alphabetically by name
+        vessels.sort((a, b) => (a.vessel_name || "").localeCompare(b.vessel_name || ""));
+
         const selected = vesselFilterInput.value;
 
         vesselFilterInput.innerHTML = "";

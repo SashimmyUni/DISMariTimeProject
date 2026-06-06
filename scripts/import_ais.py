@@ -6,9 +6,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
+from psycopg2.extras import execute_batch
 
-from app import create_app, db
-from app.models import ShipPosition
+from app import create_app
+from app.db import get_db_connection
 
 
 PROGRESS_BAR_WIDTH = 28
@@ -69,9 +70,7 @@ def import_csv_paths(csv_paths, replace=False):
     app = create_app()
 
     with app.app_context():
-        db.create_all()
-        if replace:
-            ShipPosition.query.delete()
+        database_url = app.config["DATABASE_URL"]
 
         total_inserted = 0
         total_skipped = 0
@@ -81,6 +80,7 @@ def import_csv_paths(csv_paths, replace=False):
             inserted = 0
             skipped = 0
             total_rows = len(dataframe.index)
+            rows_to_insert = []
 
             for index, row in dataframe.iterrows():
                 current_row = index + 1
@@ -102,23 +102,40 @@ def import_csv_paths(csv_paths, replace=False):
                     skipped += 1
                     continue
 
-                ship = ShipPosition(
-                    mmsi=normalized_mmsi,
-                    vessel_name=pick_value(row, "vessel_name", "name", "VesselName", "Name"),
-                    latitude=latitude,
-                    longitude=longitude,
-                    speed=parse_float(pick_value(row, "speed", "sog", "SOG")),
-                    course=parse_float(pick_value(row, "course", "cog", "COG")),
-                    heading=parse_float(pick_value(row, "heading", "Heading")),
-                    timestamp=timestamp,
+                rows_to_insert.append(
+                    (
+                        normalized_mmsi,
+                        pick_value(row, "vessel_name", "name", "VesselName", "Name"),
+                        latitude,
+                        longitude,
+                        parse_float(pick_value(row, "speed", "sog", "SOG")),
+                        parse_float(pick_value(row, "course", "cog", "COG")),
+                        parse_float(pick_value(row, "heading", "Heading")),
+                        timestamp,
+                    )
                 )
-                db.session.add(ship)
                 inserted += 1
 
             render_progress(total_rows, total_rows, f"Importing {Path(csv_path).name}")
             print()
 
-            db.session.commit()
+            with get_db_connection(database_url) as connection:
+                with connection.cursor() as cursor:
+                    if replace and total_inserted == 0:
+                        cursor.execute("DELETE FROM ship_positions")
+
+                    if rows_to_insert:
+                        execute_batch(
+                            cursor,
+                            """
+                            INSERT INTO ship_positions
+                                (mmsi, vessel_name, latitude, longitude, speed, course, heading, timestamp)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            """,
+                            rows_to_insert,
+                            page_size=1000,
+                        )
+
             total_inserted += inserted
             total_skipped += skipped
             print(f"Imported {inserted} rows from {csv_path}.")

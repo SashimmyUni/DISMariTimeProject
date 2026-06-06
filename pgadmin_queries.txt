@@ -1,0 +1,179 @@
+================================================================================
+  DISMariTime – pgAdmin-ready SQL
+    Source: aligned with direct SQL usage in app/api/routes.py,
+                    scripts/import_ais.py, tests/test_app.py
+================================================================================
+
+
+--------------------------------------------------------------------------------
+-- 1. SCHEMA – create the ship_positions table
+--    Run once in pgAdmin to set up the database.
+--------------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS ship_positions (
+    id           SERIAL PRIMARY KEY,
+    mmsi         BIGINT        NOT NULL,
+    vessel_name  VARCHAR(255),
+    latitude     DOUBLE PRECISION NOT NULL,
+    longitude    DOUBLE PRECISION NOT NULL,
+    speed        DOUBLE PRECISION,
+    course       DOUBLE PRECISION,
+    heading      DOUBLE PRECISION,
+    timestamp    TIMESTAMP     NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_ship_positions_mmsi
+    ON ship_positions (mmsi);
+
+
+--------------------------------------------------------------------------------
+-- 2. API: GET /api/vessels
+--    Returns the latest position (by timestamp) for every vessel.
+--    Optional: filter to a single calendar day by replacing the date literals.
+--------------------------------------------------------------------------------
+
+-- Without date filter:
+SELECT DISTINCT ON (mmsi)
+    mmsi,
+    vessel_name,
+    timestamp
+FROM ship_positions
+ORDER BY mmsi, timestamp DESC;
+
+
+-- With date filter (replace '2025-01-15' with the desired date):
+SELECT DISTINCT ON (mmsi)
+    mmsi,
+    vessel_name,
+    timestamp
+FROM ship_positions
+WHERE timestamp >= '2025-01-15'::date
+  AND timestamp  < '2025-01-15'::date + INTERVAL '1 day'
+ORDER BY mmsi, timestamp DESC;
+
+
+--------------------------------------------------------------------------------
+-- 3. API: GET /api/ships
+--    Returns ship positions with optional filters.
+--    Mix and match the WHERE clauses below as needed.
+--------------------------------------------------------------------------------
+
+-- All positions (most recent 100):
+SELECT id, mmsi, vessel_name, latitude, longitude,
+       speed, course, heading, timestamp
+FROM ship_positions
+ORDER BY timestamp DESC
+LIMIT 100;
+
+
+-- Filter by date (replace '2025-01-15'):
+SELECT id, mmsi, vessel_name, latitude, longitude,
+       speed, course, heading, timestamp
+FROM ship_positions
+WHERE timestamp >= '2025-01-15'::date
+  AND timestamp  < '2025-01-15'::date + INTERVAL '1 day'
+ORDER BY timestamp DESC
+LIMIT 100;
+
+
+-- Filter by MMSI (replace 123456789):
+SELECT id, mmsi, vessel_name, latitude, longitude,
+       speed, course, heading, timestamp
+FROM ship_positions
+WHERE mmsi = 123456789
+ORDER BY timestamp DESC;
+
+
+-- Filter by vessel name (partial match, replace 'ALPHA'):
+SELECT id, mmsi, vessel_name, latitude, longitude,
+       speed, course, heading, timestamp
+FROM ship_positions
+WHERE vessel_name ILIKE '%ALPHA%'
+ORDER BY timestamp DESC;
+
+
+-- Latest position only (one row per vessel):
+SELECT DISTINCT ON (mmsi)
+    id, mmsi, vessel_name, latitude, longitude,
+    speed, course, heading, timestamp
+FROM ship_positions
+ORDER BY mmsi, timestamp DESC;
+
+
+-- Latest position only, filtered by date (replace '2025-01-15'):
+SELECT DISTINCT ON (mmsi)
+    id, mmsi, vessel_name, latitude, longitude,
+    speed, course, heading, timestamp
+FROM ship_positions
+WHERE timestamp >= '2025-01-15'::date
+  AND timestamp  < '2025-01-15'::date + INTERVAL '1 day'
+ORDER BY mmsi, timestamp DESC;
+
+
+-- Latest position only, filtered by MMSI (replace 123456789):
+SELECT DISTINCT ON (mmsi)
+    id, mmsi, vessel_name, latitude, longitude,
+    speed, course, heading, timestamp
+FROM ship_positions
+WHERE mmsi = 123456789
+ORDER BY mmsi, timestamp DESC;
+
+
+--------------------------------------------------------------------------------
+-- 4. IMPORT SCRIPT: scripts/import_ais.py equivalent
+--    Bulk insert rows (psycopg2 execute_batch sends many of these at once).
+--------------------------------------------------------------------------------
+
+INSERT INTO ship_positions
+    (mmsi, vessel_name, latitude, longitude, speed, course, heading, timestamp)
+VALUES
+    (123456789, 'MY VESSEL', 1.29027, 103.851959, 12.5, 180.0, 175.0, '2025-01-15 08:30:00');
+
+
+-- Optional: delete all rows before a fresh import (equivalent to --replace flag):
+DELETE FROM ship_positions;
+
+
+-- Or truncate (faster, resets the SERIAL counter):
+TRUNCATE TABLE ship_positions RESTART IDENTITY;
+
+
+--------------------------------------------------------------------------------
+-- 5. TEST DATA – mirrors the setUp fixture in tests/test_app.py
+--    Useful for manual testing in pgAdmin.
+--------------------------------------------------------------------------------
+
+-- Insert test rows:
+INSERT INTO ship_positions
+    (mmsi, vessel_name, latitude, longitude, speed, course, heading, timestamp)
+VALUES
+    (123456789, 'Alpha', 1.29027,  103.851959, 12.5, 180.0, 175.0, NOW()),
+    (987654321, 'Bravo', 1.3000,   103.8000,   10.2,  90.0,  95.0, NOW() - INTERVAL '1 day 5 minutes'),
+    (123456789, 'Alpha', 1.2900,   103.8510,   11.0, 178.0, 170.0, NOW() - INTERVAL '30 minutes');
+
+
+-- Clean up test rows:
+DELETE FROM ship_positions
+WHERE vessel_name IN ('Alpha', 'Bravo')
+  AND mmsi IN (123456789, 987654321);
+
+
+--------------------------------------------------------------------------------
+-- 6. UTILITY QUERIES
+--------------------------------------------------------------------------------
+
+-- Count all rows:
+SELECT COUNT(*) FROM ship_positions;
+
+-- Count rows per vessel:
+SELECT mmsi, vessel_name, COUNT(*) AS position_count
+FROM ship_positions
+GROUP BY mmsi, vessel_name
+ORDER BY position_count DESC;
+
+-- Date range of data:
+SELECT MIN(timestamp) AS earliest, MAX(timestamp) AS latest
+FROM ship_positions;
+
+-- Drop the table (destructive – use with care):
+-- DROP TABLE IF EXISTS ship_positions;
