@@ -51,6 +51,8 @@ source venv/bin/activate
 ### 3. Install dependencies
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -100,6 +102,10 @@ python scripts/import_ais.py data/cleaned/aisdk-2026-01-07-clean.csv
 
 **All of January:**
 ```bash
+# Optional cleaning stage if starting from raw files
+python scripts/clean_ais.py data/raw/aisdk-2026-01-01.csv
+
+# Import cleaned data
 python scripts/import_ais.py
 ```
 

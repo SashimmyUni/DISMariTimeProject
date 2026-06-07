@@ -40,24 +40,30 @@ def get_vessels():
     if date_error:
         return date_error
 
-    params = []
-    where_clause = ""
     if start_day and end_day:
-        where_clause = "WHERE timestamp >= %s AND timestamp < %s"
-        params.extend([start_day, end_day])
-
-    rows = select_dicts(
-        f"""
-        SELECT DISTINCT ON (mmsi)
-            mmsi,
-            vessel_name,
-            timestamp
-        FROM ship_positions
-        {where_clause}
-        ORDER BY mmsi, timestamp DESC
-        """,
-        params,
-    )
+        rows = select_dicts(
+            """
+            SELECT DISTINCT ON (mmsi)
+                mmsi,
+                vessel_name,
+                timestamp
+            FROM ship_positions
+            WHERE timestamp >= %s AND timestamp < %s
+            ORDER BY mmsi, timestamp DESC, id DESC
+            """,
+            [start_day, end_day],
+        )
+    else:
+        rows = select_dicts(
+            """
+            SELECT
+                mmsi,
+                vessel_name,
+                timestamp
+            FROM mv_ship_positions_latest
+            ORDER BY mmsi
+            """
+        )
 
     payload = [
         {
@@ -122,22 +128,40 @@ def get_ships():
     has_single_vessel_filter = bool(mmsi_filter or vessel_filter)
  
     if latest_only:
-        query = f"""
-        SELECT DISTINCT ON (mmsi)
-            id,
-            mmsi,
-            vessel_name,
-            latitude,
-            longitude,
-            speed,
-            course,
-            heading,
-            timestamp
-        FROM ship_positions
-        {where_sql}
-        ORDER BY mmsi, timestamp DESC
-        """
-        ships = select_dicts(query, params)
+        if start_day and end_day:
+            query = f"""
+            SELECT DISTINCT ON (mmsi)
+                id,
+                mmsi,
+                vessel_name,
+                latitude,
+                longitude,
+                speed,
+                course,
+                heading,
+                timestamp
+            FROM ship_positions
+            {where_sql}
+            ORDER BY mmsi, timestamp DESC, id DESC
+            """
+            ships = select_dicts(query, params)
+        else:
+            query = f"""
+            SELECT
+                id,
+                mmsi,
+                vessel_name,
+                latitude,
+                longitude,
+                speed,
+                course,
+                heading,
+                timestamp
+            FROM mv_ship_positions_latest
+            {where_sql}
+            ORDER BY mmsi
+            """
+            ships = select_dicts(query, params)
     else:
         limit_sql = "" if has_single_vessel_filter else "LIMIT 100"
         query = f"""

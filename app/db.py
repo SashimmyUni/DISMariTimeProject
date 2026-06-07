@@ -20,6 +20,46 @@ CREATE TABLE IF NOT EXISTS ship_positions (
 
 CREATE INDEX IF NOT EXISTS ix_ship_positions_mmsi
     ON ship_positions (mmsi);
+
+CREATE INDEX IF NOT EXISTS ix_ship_positions_timestamp_desc
+    ON ship_positions (timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS ix_ship_positions_mmsi_timestamp_desc
+    ON ship_positions (mmsi, timestamp DESC);
+
+CREATE OR REPLACE VIEW v_ship_positions_latest AS
+SELECT DISTINCT ON (mmsi)
+    id,
+    mmsi,
+    vessel_name,
+    latitude,
+    longitude,
+    speed,
+    course,
+    heading,
+    timestamp
+FROM ship_positions
+ORDER BY mmsi, timestamp DESC, id DESC;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS mv_ship_positions_latest AS
+SELECT DISTINCT ON (mmsi)
+    id,
+    mmsi,
+    vessel_name,
+    latitude,
+    longitude,
+    speed,
+    course,
+    heading,
+    timestamp
+FROM ship_positions
+ORDER BY mmsi, timestamp DESC, id DESC;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ix_mv_ship_positions_latest_mmsi
+    ON mv_ship_positions_latest (mmsi);
+
+CREATE INDEX IF NOT EXISTS ix_mv_ship_positions_latest_timestamp_desc
+    ON mv_ship_positions_latest (timestamp DESC);
 """
 
 
@@ -35,6 +75,12 @@ def ensure_schema():
     with get_db_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(SCHEMA_SQL)
+
+
+def refresh_latest_views():
+    with get_db_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("REFRESH MATERIALIZED VIEW mv_ship_positions_latest")
 
 
 def select_dicts(query, params=None):

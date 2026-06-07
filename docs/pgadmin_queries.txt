@@ -25,6 +25,50 @@ CREATE TABLE IF NOT EXISTS ship_positions (
 CREATE INDEX IF NOT EXISTS ix_ship_positions_mmsi
     ON ship_positions (mmsi);
 
+CREATE INDEX IF NOT EXISTS ix_ship_positions_timestamp_desc
+    ON ship_positions (timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS ix_ship_positions_mmsi_timestamp_desc
+    ON ship_positions (mmsi, timestamp DESC);
+
+
+-- Latest-per-vessel view (always up to date, computes at query time):
+CREATE OR REPLACE VIEW v_ship_positions_latest AS
+SELECT DISTINCT ON (mmsi)
+    id,
+    mmsi,
+    vessel_name,
+    latitude,
+    longitude,
+    speed,
+    course,
+    heading,
+    timestamp
+FROM ship_positions
+ORDER BY mmsi, timestamp DESC, id DESC;
+
+
+-- Materialized latest-per-vessel view (fast reads, refresh required after writes):
+CREATE MATERIALIZED VIEW IF NOT EXISTS mv_ship_positions_latest AS
+SELECT DISTINCT ON (mmsi)
+    id,
+    mmsi,
+    vessel_name,
+    latitude,
+    longitude,
+    speed,
+    course,
+    heading,
+    timestamp
+FROM ship_positions
+ORDER BY mmsi, timestamp DESC, id DESC;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ix_mv_ship_positions_latest_mmsi
+    ON mv_ship_positions_latest (mmsi);
+
+CREATE INDEX IF NOT EXISTS ix_mv_ship_positions_latest_timestamp_desc
+    ON mv_ship_positions_latest (timestamp DESC);
+
 
 --------------------------------------------------------------------------------
 -- 2. API: GET /api/vessels
@@ -32,13 +76,13 @@ CREATE INDEX IF NOT EXISTS ix_ship_positions_mmsi
 --    Optional: filter to a single calendar day by replacing the date literals.
 --------------------------------------------------------------------------------
 
--- Without date filter:
-SELECT DISTINCT ON (mmsi)
+-- Without date filter (fast path via materialized view):
+SELECT
     mmsi,
     vessel_name,
     timestamp
-FROM ship_positions
-ORDER BY mmsi, timestamp DESC;
+FROM mv_ship_positions_latest
+ORDER BY mmsi;
 
 
 -- With date filter (replace '2025-01-15' with the desired date):
@@ -49,7 +93,7 @@ SELECT DISTINCT ON (mmsi)
 FROM ship_positions
 WHERE timestamp >= '2025-01-15'::date
   AND timestamp  < '2025-01-15'::date + INTERVAL '1 day'
-ORDER BY mmsi, timestamp DESC;
+ORDER BY mmsi, timestamp DESC, id DESC;
 
 
 --------------------------------------------------------------------------------
@@ -92,12 +136,12 @@ WHERE vessel_name ILIKE '%ALPHA%'
 ORDER BY timestamp DESC;
 
 
--- Latest position only (one row per vessel):
-SELECT DISTINCT ON (mmsi)
+-- Latest position only (one row per vessel, fast path):
+SELECT
     id, mmsi, vessel_name, latitude, longitude,
     speed, course, heading, timestamp
-FROM ship_positions
-ORDER BY mmsi, timestamp DESC;
+FROM mv_ship_positions_latest
+ORDER BY mmsi;
 
 
 -- Latest position only, filtered by date (replace '2025-01-15'):
@@ -107,16 +151,16 @@ SELECT DISTINCT ON (mmsi)
 FROM ship_positions
 WHERE timestamp >= '2025-01-15'::date
   AND timestamp  < '2025-01-15'::date + INTERVAL '1 day'
-ORDER BY mmsi, timestamp DESC;
+ORDER BY mmsi, timestamp DESC, id DESC;
 
 
 -- Latest position only, filtered by MMSI (replace 123456789):
-SELECT DISTINCT ON (mmsi)
+SELECT
     id, mmsi, vessel_name, latitude, longitude,
     speed, course, heading, timestamp
-FROM ship_positions
+FROM mv_ship_positions_latest
 WHERE mmsi = 123456789
-ORDER BY mmsi, timestamp DESC;
+ORDER BY mmsi;
 
 
 --------------------------------------------------------------------------------
@@ -136,6 +180,10 @@ DELETE FROM ship_positions;
 
 -- Or truncate (faster, resets the SERIAL counter):
 TRUNCATE TABLE ship_positions RESTART IDENTITY;
+
+
+-- Refresh materialized latest view after inserts/updates/deletes:
+REFRESH MATERIALIZED VIEW mv_ship_positions_latest;
 
 
 --------------------------------------------------------------------------------
