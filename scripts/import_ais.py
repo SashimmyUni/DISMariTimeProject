@@ -9,7 +9,7 @@ import pandas as pd
 from psycopg2.extras import execute_batch
 
 from app import create_app
-from app.db import get_db_connection
+from app.db import get_db_connection, refresh_latest_views
 
 
 PROGRESS_BAR_WIDTH = 28
@@ -141,6 +141,9 @@ def import_csv_paths(csv_paths, replace=False):
             print(f"Imported {inserted} rows from {csv_path}.")
             if skipped:
                 print(f"Skipped {skipped} invalid rows in {csv_path}.")
+
+        refresh_latest_views()
+        print("Refreshed materialized view: mv_ship_positions_latest.")
 
     print(f"Total imported rows: {total_inserted}.")
     if total_skipped:
