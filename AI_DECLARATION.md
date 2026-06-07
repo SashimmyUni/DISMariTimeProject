@@ -25,6 +25,8 @@ Claude (Anthropic) — https://claude.ai
 
 We used GAI to assist with writing and debugging code.
 
+We used GAI to structure readme file.
+
 AI was used during the implementation phase — primarily for Flask routes and JavaScript.
 
 All output was reviewed, tested, and modified by the individual using the GAI tool before being included in the project.

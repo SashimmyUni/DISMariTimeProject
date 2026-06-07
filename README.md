@@ -20,7 +20,6 @@ SQL queries used in the app are documented in [`docs/pgadmin_queries.txt`](docs/
 ## Prerequisites
 
 - Python 3.10+
-- PostgreSQL 13+ (running locally)
 - pgAdmin 4 (for creating the database)
 
 ---
@@ -29,54 +28,37 @@ SQL queries used in the app are documented in [`docs/pgadmin_queries.txt`](docs/
 
 ### 1. Clone the repository
 
-```bash
 git clone https://github.com/SashimmyUni/DISMariTimeProject.git
 cd DISMariTimeProject
-```
 
 ### 2. Create a virtual environment
 
 **Windows:**
-```cmd
 python -m venv venv
 venv\Scripts\activate
-```
 
 **macOS / Linux:**
-```bash
+
 python3 -m venv venv
 source venv/bin/activate
-```
 
 ### 3. Install dependencies
 
-```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-```
 
 ### 4. Create the database
 
-In pgAdmin, create a database called `dismaritime`. Or with psql:
-
-```bash
-psql -U postgres -c "CREATE DATABASE dismaritime;"
-```
+In pgAdmin, create a database called `dismaritime`.
 
 ### 5. Set up environment variables
 
-```bash
-cp .env.example .env
-```
-
 Open `.env` and fill in your PostgreSQL password:
 
-```env
 DATABASE_URL=postgresql://postgres:YOURPASSWORD@localhost:5432/dismaritime
 SECRET_KEY=change-this-secret-key
 FLASK_ENV=development
-```
 
 ---
 
@@ -84,43 +66,22 @@ FLASK_ENV=development
 
 We use cleaned AIS data from the Danish Maritime Authority. The cleaned CSV files are in `data/cleaned/`.
 
-**Quick demo — one day:**
-```bash
-python scripts/import_ais.py data/cleaned/aisdk-2026-01-01-clean.csv
-```
-
-**One week:**
-```bash
-python scripts/import_ais.py data/cleaned/aisdk-2026-01-01-clean.csv
-python scripts/import_ais.py data/cleaned/aisdk-2026-01-02-clean.csv
-python scripts/import_ais.py data/cleaned/aisdk-2026-01-03-clean.csv
-python scripts/import_ais.py data/cleaned/aisdk-2026-01-04-clean.csv
-python scripts/import_ais.py data/cleaned/aisdk-2026-01-05-clean.csv
-python scripts/import_ais.py data/cleaned/aisdk-2026-01-06-clean.csv
-python scripts/import_ais.py data/cleaned/aisdk-2026-01-07-clean.csv
-```
-
 **All of January:**
-```bash
-# Optional cleaning stage if starting from raw files
-python scripts/clean_ais.py data/raw/aisdk-2026-01-01.csv
 
 # Import cleaned data
 python scripts/import_ais.py
-```
+
 
 To clear existing data before importing, add `--replace`:
-```bash
+
 python scripts/import_ais.py --replace
-```
 
 ---
 
 ## Running the App
 
-```bash
 python run.py
-```
+
 
 Go to **http://127.0.0.1:5000** in your browser.
 
@@ -208,8 +169,4 @@ DISMariTimeProject/
 
 ## Common Issues
 
-**PostgreSQL connection refused** — check that PostgreSQL is running and that the credentials in `.env` are correct.
-
 **No ships on map** — run `import_ais.py` first and check that `/api/ships` returns data.
-
-**`venv\Scripts\activate` not found** — run `python -m venv venv` first, or use PowerShell with the right execution policy.
