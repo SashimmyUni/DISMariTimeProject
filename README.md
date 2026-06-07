@@ -159,7 +159,7 @@ GET /api/vessels                    — list of all vessels
 
 ## Data
 
-We download weekly AIS CSV files from [web.ais.dk/aisdata](http://web.ais.dk/aisdata/) and clean them with `scripts/clean_ais.py`:
+We download daily AIS CSV files from [aisdata.ais.dk](http://aisdata.ais.dk) and clean them one day at a time with `scripts/clean_ais.py`:
 - Only Class A vessels
 - Bounding box: lat 53.5–60.0, lon 3.0–17.0
 - Downsampled to one position per vessel per 10 minutes
@@ -171,26 +171,26 @@ We download weekly AIS CSV files from [web.ais.dk/aisdata](http://web.ais.dk/ais
 ```
 DISMariTimeProject/
 ├── app/
-│   ├── __init__.py        — Flask app factory
-│   ├── db.py              — PostgreSQL connection and schema
-│   ├── routes.py          — Main page route
+│   ├── __init__.py         — Flask app factory
+│   ├── db.py               — PostgreSQL connection and schema
+│   ├── routes.py           — Main page route
 │   └── api/
-│       └── routes.py      — JSON API with regex validation
+│       └── routes.py       — JSON API with regex validation
 ├── app/static/
 │   ├── css/style.css
-│   └── js/map.js          — Leaflet map and ship route
+│   └── js/map.js           — Leaflet map and ship route
 ├── app/templates/
 │   ├── base.html
 │   └── index.html
 ├── data/
-│   ├── cleaned/           — Cleaned AIS CSV files
-│   └── raw/               — Raw files (git-ignored)
+│   ├── cleaned/            — Cleaned AIS CSV files
+│   └── raw/                — Raw files (git-ignored)
 ├── docs/
-│   ├── er_diagram.png     — E/R diagram
+│   ├── er_diagram.png      — E/R diagram
 │   └── pgadmin_queries.txt — SQL queries used in the app
 ├── scripts/
-│   ├── clean_ais.py       — Data cleaning pipeline
-│   └── import_ais.py      — PostgreSQL loader
+│   ├── clean_ais.py        — Data cleaning pipeline
+│   └── import_ais.py       — PostgreSQL loader
 ├── .env.example
 ├── AI_DECLARATION.md
 ├── config.py
