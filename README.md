@@ -1,139 +1,54 @@
-# DISMariTimeProject
+# DIS Maritime — AIS Ship Tracker
 
-Flask + PostgreSQL AIS tracker for ingesting, cleaning, storing, and serving vessel positions with optimized SQL views.
+We built a Flask web application that lets you explore historical AIS ship positions from Danish waters on an interactive map. Ships are shown as markers on a Leaflet.js map, and you can filter by date, vessel name, or MMSI.
 
-## Overview
+**Group 11:** Andreas Krone Reichl, Jimmy Huynh and Sebastian Lucas Poulsen,  
+**Course:** Databases and Information Systems(NDAB21010U), Spring 2026, University of Copenhagen
 
-This repository implements an end-to-end pipeline:
+---
 
-1. Raw AIS CSV files are cleaned and downsampled.
-2. Cleaned files are bulk imported into PostgreSQL.
-3. Schema, indexes, and views are created/maintained automatically.
-4. API endpoints read from base tables and optimized views.
-5. Frontend map consumes API responses.
+## Database Model
 
-The app uses direct SQL via `psycopg2` (no ORM) and supports PostgreSQL only.
+The E/R diagram is in [`docs/er_diagram.png`](docs/er_diagram.png).
 
-## Tech Stack
+We use a single PostgreSQL table `ship_positions` that holds AIS position reports for Class A vessels in Danish waters. The table and indexes are created automatically when you first start the app.
 
-- Python / Flask
-- PostgreSQL
-- pgAdmin (recommended for local DB inspection)
-- Pandas + psycopg2 for import
-- HTML/CSS/JavaScript + Leaflet.js
+SQL queries used in the app are documented in [`docs/pgadmin_queries.txt`](docs/pgadmin_queries.txt).
 
-## Pipeline Architecture
+---
 
-### 1) Raw Data
+## Prerequisites
 
-- Input location: `data/raw/`
-- Source format: DMA AIS CSV files
+- Python 3.10+
+- PostgreSQL 13+ (running locally)
+- pgAdmin 4 (for creating the database)
 
-### 2) Cleaning Stage
+---
 
-Script: `scripts/clean_ais.py`
+## Setup
 
-What the cleaner does:
-
-- Removes DMA header quirks.
-- Keeps Class A vessels only.
-- Validates MMSI and timestamps.
-- Filters invalid coordinates and constrains geospatial bounds.
-- Downsamples to one position per vessel per 10 minutes.
-- Outputs lean CSV files for import.
-
-Output location:
-
-- `data/cleaned/*-clean.csv`
-
-Example:
+### 1. Clone the repository
 
 ```bash
-python scripts/clean_ais.py data/raw/aisdk-2026-01-01.csv
-python scripts/clean_ais.py data/raw/aisdk-2026-01-01.csv data/raw/aisdk-2026-01-02.csv
+git clone https://github.com/SashimmyUni/DISMariTimeProject.git
+cd DISMariTimeProject
 ```
 
-### 3) Import Stage
+### 2. Create a virtual environment
 
-Script: `scripts/import_ais.py`
+**Windows:**
+```cmd
+python -m venv venv
+venv\Scripts\activate
+```
 
-What the importer does:
-
-- Reads one CSV or all CSV files in a directory.
-- Normalizes supported column aliases (`mmsi`/`MMSI`, `vessel_name`/`name`, `speed`/`sog`, etc.).
-- Bulk inserts rows into `ship_positions` using `execute_batch`.
-- Optionally clears old rows with `--replace`.
-- Refreshes materialized latest view after import.
-
-Examples:
-
+**macOS / Linux:**
 ```bash
-# Import all cleaned files
-python scripts/import_ais.py
-
-# Import a single file
-python scripts/import_ais.py data/cleaned/aisdk-2026-01-01-clean.csv
-
-# Replace existing records, then import
-python scripts/import_ais.py data/cleaned/aisdk-2026-01-01-clean.csv --replace
+python3 -m venv venv
+source venv/bin/activate
 ```
 
-### 4) Database Schema + Performance Objects
-
-Defined in `app/db.py` and also documented in `pgadmin_queries.txt`.
-
-Core table:
-
-- `ship_positions`
-
-Performance indexes:
-
-- `ix_ship_positions_mmsi`
-- `ix_ship_positions_timestamp_desc`
-- `ix_ship_positions_mmsi_timestamp_desc`
-
-Views:
-
-- `v_ship_positions_latest` (normal view, always current)
-- `mv_ship_positions_latest` (materialized view, very fast reads)
-
-Why materialized views are included:
-
-- They are added as a performance pattern for future scaling and as practice with SQL optimization.
-- In a fresh local evaluation environment, the evaluator still needs to import data first.
-- Because of that setup step, runtime gains may not be very noticeable during initial small/local runs.
-- The main benefit appears when datasets grow and latest-position queries are called repeatedly.
-
-Materialized view indexes:
-
-- `ix_mv_ship_positions_latest_mmsi` (unique)
-- `ix_mv_ship_positions_latest_timestamp_desc`
-
-Refresh behavior:
-
-- `scripts/import_ais.py` automatically runs `REFRESH MATERIALIZED VIEW mv_ship_positions_latest` after import.
-- If you modify `ship_positions` manually (pgAdmin/SQL), refresh the materialized view manually.
-
-```sql
-REFRESH MATERIALIZED VIEW mv_ship_positions_latest;
-```
-
-### 5) API Serving Stage
-
-Routes in `app/api/routes.py`.
-
-- `GET /api/vessels`
-	- No `date`: reads from `mv_ship_positions_latest` (fast path).
-	- With `date=YYYY-MM-DD`: computes latest-per-vessel from base table for that day.
-
-- `GET /api/ships`
-	- Supports filters: `mmsi`, `vessel`, `date`, `latest`.
-	- `latest=true` and no date: reads from `mv_ship_positions_latest`.
-	- Other combinations query `ship_positions` directly.
-
-## End-to-End Setup
-
-### 1) Python Environment
+### 3. Install dependencies
 
 ```bash
 python -m venv .venv
@@ -141,25 +56,51 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2) Configure Environment Variables
+### 4. Create the database
 
-Create `.env` with:
-
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dismaritime
-SECRET_KEY=dev-secret-key
-```
-
-### 3) Start the App
+In pgAdmin, create a database called `dismaritime`. Or with psql:
 
 ```bash
-python run.py
+psql -U postgres -c "CREATE DATABASE dismaritime;"
 ```
 
-On startup (non-testing mode), the app runs schema setup from `app/db.py`.
+### 5. Set up environment variables
 
-### 4) Run the Data Pipeline
+```bash
+cp .env.example .env
+```
 
+Open `.env` and fill in your PostgreSQL password:
+
+```env
+DATABASE_URL=postgresql://postgres:YOURPASSWORD@localhost:5432/dismaritime
+SECRET_KEY=change-this-secret-key
+FLASK_ENV=development
+```
+
+---
+
+## Loading Data
+
+We use cleaned AIS data from the Danish Maritime Authority. The cleaned CSV files are in `data/cleaned/`.
+
+**Quick demo — one day:**
+```bash
+python scripts/import_ais.py data/cleaned/aisdk-2026-01-01-clean.csv
+```
+
+**One week:**
+```bash
+python scripts/import_ais.py data/cleaned/aisdk-2026-01-01-clean.csv
+python scripts/import_ais.py data/cleaned/aisdk-2026-01-02-clean.csv
+python scripts/import_ais.py data/cleaned/aisdk-2026-01-03-clean.csv
+python scripts/import_ais.py data/cleaned/aisdk-2026-01-04-clean.csv
+python scripts/import_ais.py data/cleaned/aisdk-2026-01-05-clean.csv
+python scripts/import_ais.py data/cleaned/aisdk-2026-01-06-clean.csv
+python scripts/import_ais.py data/cleaned/aisdk-2026-01-07-clean.csv
+```
+
+**All of January:**
 ```bash
 # Optional cleaning stage if starting from raw files
 python scripts/clean_ais.py data/raw/aisdk-2026-01-01.csv
@@ -168,56 +109,107 @@ python scripts/clean_ais.py data/raw/aisdk-2026-01-01.csv
 python scripts/import_ais.py
 ```
 
-### 5) Verify API
-
-Open in browser:
-
-- `http://127.0.0.1:5000/`
-- `http://127.0.0.1:5000/api/ships`
-- `http://127.0.0.1:5000/api/vessels`
-
-Example query variants:
-
-- `/api/ships?latest=true`
-- `/api/ships?mmsi=123456789`
-- `/api/ships?vessel=Alpha`
-- `/api/ships?date=2026-01-15`
-- `/api/vessels?date=2026-01-15`
-
-## pgAdmin Workflow
-
-Use `pgadmin_queries.txt` for:
-
-- One-time schema + index + view creation
-- API-equivalent SQL checks
-- Utility diagnostics (counts, date ranges)
-- Manual materialized view refresh commands
-
-## Testing
-
-Run unit tests:
-
+To clear existing data before importing, add `--replace`:
 ```bash
-python -m unittest -q
+python scripts/import_ais.py --replace
 ```
 
-## Operational Notes
+---
 
-- PostgreSQL is mandatory for runtime.
-- SQLite is not supported.
-- Materialized view reads are fast, but view freshness depends on refresh.
-- Import script already refreshes the materialized view automatically.
-- Practical evaluation note: on a tutor's first local run, importing data and schema/view setup dominate elapsed time; materialized views are mainly included for future runtime improvements and optimization practice.
+## Running the App
+
+```bash
+python run.py
+```
+
+Go to **http://127.0.0.1:5000** in your browser.
+
+---
+
+## How to Use the App
+
+### Map
+
+The map shows ship positions in Danish waters — North Sea, Kattegat, and the Baltic corridor. Each dot is a ship position, and the small line through it shows the ship's heading.
+
+### Filters
+
+| Filter | What it does |
+|--------|-------------|
+| **Date** | Show positions for a specific day |
+| **Vessel** | Pick a specific ship from the dropdown |
+| **Latest position only** | Show only the most recent position per vessel |
+
+All inputs are validated with regular expressions before hitting the database:
+- **MMSI** must be 7–9 digits
+- **Vessel name** allows letters, digits, spaces, `.`, `'`, `-`
+- **Date** must be `YYYY-MM-DD`
+
+### Ship route
+
+Select a vessel (without "Latest position only") and the app draws its full route for the selected day as a dashed line. Green = start, red = end.
+
+### API
+
+You can also query the API directly:
+
+```
+GET /api/ships                      — latest 100 positions
+GET /api/ships?date=2026-01-01      — positions for a specific day
+GET /api/ships?mmsi=219001431       — all positions for one vessel
+GET /api/ships?latest=true          — latest position per vessel
+GET /api/vessels                    — list of all vessels
+```
+
+---
+
+## Data
+
+We download daily AIS CSV files from [aisdata.ais.dk](http://aisdata.ais.dk) and clean them one day at a time with `scripts/clean_ais.py`:
+- Only Class A vessels
+- Bounding box: lat 53.5–60.0, lon 3.0–17.0
+- Downsampled to one position per vessel per 10 minutes
+
+---
 
 ## Project Structure
 
-- `app/` Flask application package
-- `app/db.py` schema, indexes, views, DB helpers
-- `app/api/routes.py` JSON API routes and filters
-- `app/templates/` HTML templates
-- `app/static/` frontend assets
-- `scripts/clean_ais.py` raw DMA cleaning/downsampling
-- `scripts/import_ais.py` PostgreSQL bulk import + MV refresh
-- `data/raw/` raw AIS input
-- `data/cleaned/` cleaned AIS output
-- `pgadmin_queries.txt` pgAdmin-ready SQL reference
+```
+DISMariTimeProject/
+├── app/
+│   ├── __init__.py         — Flask app factory
+│   ├── db.py               — PostgreSQL connection and schema
+│   ├── routes.py           — Main page route
+│   └── api/
+│       └── routes.py       — JSON API with regex validation
+├── app/static/
+│   ├── css/style.css
+│   └── js/map.js           — Leaflet map and ship route
+├── app/templates/
+│   ├── base.html
+│   └── index.html
+├── data/
+│   ├── cleaned/            — Cleaned AIS CSV files
+│   └── raw/                — Raw files (git-ignored)
+├── docs/
+│   ├── er_diagram.png      — E/R diagram
+│   └── pgadmin_queries.txt — SQL queries used in the app
+├── scripts/
+│   ├── clean_ais.py        — Data cleaning pipeline
+│   └── import_ais.py       — PostgreSQL loader
+├── .env.example
+├── AI_DECLARATION.md
+├── config.py
+├── requirements.txt
+└── run.py
+```
+
+---
+
+## Common Issues
+
+**PostgreSQL connection refused** — check that PostgreSQL is running and that the credentials in `.env` are correct.
+
+**No ships on map** — run `import_ais.py` first and check that `/api/ships` returns data.
+
+**`venv\Scripts\activate` not found** — run `python -m venv venv` first, or use PowerShell with the right execution policy.
